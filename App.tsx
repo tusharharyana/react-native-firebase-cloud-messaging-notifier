@@ -1,28 +1,38 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, { useEffect } from 'react';
+import { Alert, PermissionsAndroid, Platform } from 'react-native';
+import messaging from '@react-native-firebase/messaging';
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
+export default function App() {
+  useEffect(() => {
+    const requestPermission = async () => {
+      if (Platform.OS === 'android' && Platform.Version >= 33) {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+          {
+            title: 'Permission Required',
+            message: 'We need permission to show notifications.',
+            buttonPositive: 'OK',
+          },
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          console.log('Notification permission not granted');
+        }
+      }
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+      await messaging().registerDeviceForRemoteMessages();
 
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <NewAppScreen templateFileName="App.tsx" />
-    </View>
-  );
+      const token = await messaging().getToken();
+      console.log('FCM Token:', token);
+    };
+
+    requestPermission();
+
+    const unsubscribe = messaging().onMessage(async remoteMessage => {
+      Alert.alert('New Notification', JSON.stringify(remoteMessage.notification));
+    });
+
+    return unsubscribe;
+  }, []);
+
+  return null; // for now, no UI
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
-
-export default App;
