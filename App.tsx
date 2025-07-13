@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Platform, PermissionsAndroid } from 'react-native';
 import messaging from '@react-native-firebase/messaging';
 import {
@@ -14,6 +14,8 @@ export const navigationRef = createNavigationContainerRef();
 const Stack = createNativeStackNavigator();
 
 export default function App() {
+  const [initialNotification, setInitialNotification] = useState(null);
+
   useEffect(() => {
     const requestPermission = async () => {
       if (Platform.OS === 'android' && Platform.Version >= 33) {
@@ -26,13 +28,13 @@ export default function App() {
       }
 
       await messaging().registerDeviceForRemoteMessages();
-
       const token = await messaging().getToken();
       console.log('🔥 FCM Token:', token);
     };
 
     requestPermission();
 
+    // Foreground notifications
     const unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
       Alert.alert(
         remoteMessage.notification?.title || '',
@@ -40,19 +42,25 @@ export default function App() {
       );
     });
 
+    // When app is opened from background
     const unsubscribeOpenedApp = messaging().onNotificationOpenedApp(
       remoteMessage => {
-        if (remoteMessage?.data?.screen === 'NotificationScreen') {
+        if (
+          navigationRef.isReady() &&
+          remoteMessage?.data?.screen === 'NotificationScreen'
+        ) {
           navigationRef.navigate('NotificationScreen');
         }
       },
     );
 
+    // When app is opened from quit
     messaging()
       .getInitialNotification()
       .then(remoteMessage => {
         if (remoteMessage?.data?.screen === 'NotificationScreen') {
-          navigationRef.navigate('NotificationScreen');
+          // Delay navigation until navigator is ready
+          setInitialNotification(remoteMessage);
         }
       });
 
@@ -64,7 +72,18 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer ref={navigationRef}>
+      <NavigationContainer
+        ref={navigationRef}
+        onReady={() => {
+          if (
+            initialNotification &&
+            initialNotification.data?.screen === 'NotificationScreen'
+          ) {
+            navigationRef.navigate('NotificationScreen');
+            setInitialNotification(null); // clear
+          }
+        }}
+      >
         <Stack.Navigator initialRouteName="Home">
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen
